@@ -1,0 +1,511 @@
+--==========================================================
+-- SevenM Hood — Pepsi UI + Aimbot + HSV Picker (FIXED)
+--==========================================================
+local library = loadstring(game:GetObjects("rbxassetid://7657867786")[1].Source)()
+
+local P = game:GetService("Players")
+local R = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local L = P.LocalPlayer
+local C = workspace.CurrentCamera
+
+local Config = {
+    Aim = false, AimPart = "Head", AimFOV = 150, Dist = 500, Smooth = 1,
+    Wall = true, Team = true, SilentAim = false,
+    CamFollow = false, CamFollowSpeed = 0.15,
+
+    ESP = false, Box = true, Name = true, Distance = true, Health = true, Tracer = true, HeadDot = true,
+    ESPDist = 1500,
+
+    POVCircle = true, CamFOV = 70,
+
+    ColorFOV      = Color3.fromRGB(255, 255, 255),
+    ColorBox      = Color3.fromRGB(255, 60, 60),
+    ColorName     = Color3.fromRGB(255, 255, 255),
+    ColorDistance = Color3.fromRGB(255, 255, 255),
+    ColorHealth   = Color3.fromRGB(0, 255, 0),
+    ColorTracer   = Color3.fromRGB(255, 60, 60),
+    ColorHeadDot  = Color3.fromRGB(255, 255, 0),
+}
+
+--==========================================================
+-- HSV COLOR PICKER (แก้ hue × sat)
+--==========================================================
+local ColorPicker
+do
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SevenMPicker"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = (pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui")) or L:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame", screenGui)
+    frame.Size = UDim2.fromOffset(260, 330)
+    frame.Position = UDim2.new(0.5, -130, 0.5, -165)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    frame.BorderSizePixel = 0
+    frame.Visible = false
+    frame.Active = true
+    frame.Draggable = true
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, -40, 0, 28)
+    title.Position = UDim2.fromOffset(10, 4)
+    title.BackgroundTransparency = 1
+    title.Text = "Pick Color"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.GothamBold
+
+    local close = Instance.new("TextButton", frame)
+    close.Size = UDim2.fromOffset(24, 24)
+    close.Position = UDim2.new(1, -32, 0, 6)
+    close.Text = "×"
+    close.TextColor3 = Color3.new(1, 1, 1)
+    close.TextSize = 16
+    close.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    close.BorderSizePixel = 0
+    Instance.new("UICorner", close).CornerRadius = UDim.new(1, 0)
+
+    -- ★ Box container
+    local boxFrame = Instance.new("Frame", frame)
+    boxFrame.Size = UDim2.fromOffset(220, 200)
+    boxFrame.Position = UDim2.fromOffset(20, 40)
+    boxFrame.BackgroundColor3 = Color3.new(1, 1, 1)     -- ★ ขาว base
+    boxFrame.BorderSizePixel = 0
+    boxFrame.ClipsDescendants = true
+    Instance.new("UICorner", boxFrame).CornerRadius = UDim.new(0, 6)
+
+    -- ★ Hue gradient — base ขาว → gradient แสดงสีรุ้งจริง
+    local hueGradient = Instance.new("Frame", boxFrame)
+    hueGradient.Size = UDim2.fromScale(1, 1)
+    hueGradient.BackgroundColor3 = Color3.new(1, 1, 1)   -- ★ ขาว
+    hueGradient.BorderSizePixel = 0
+    hueGradient.BackgroundTransparency = 0
+    Instance.new("UICorner", hueGradient).CornerRadius = UDim.new(0, 6)
+
+    local hueGrad = Instance.new("UIGradient", hueGradient)
+    hueGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
+        ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
+        ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0)),
+    })
+
+    -- ★ Saturation overlay — ดำไล่ลงล่าง
+    local satOverlay = Instance.new("Frame", boxFrame)
+    satOverlay.Size = UDim2.fromScale(1, 1)
+    satOverlay.BackgroundColor3 = Color3.new(0, 0, 0)     -- ★ ดำ base
+    satOverlay.BorderSizePixel = 0
+    satOverlay.BackgroundTransparency = 0
+    Instance.new("UICorner", satOverlay).CornerRadius = UDim.new(0, 6)
+
+    local satGrad = Instance.new("UIGradient", satOverlay)
+    satGrad.Rotation = 90                                  -- ตั้ง
+    satGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),   -- บน: ทึบ (ดำ)
+        NumberSequenceKeypoint.new(1, 1),   -- ล่าง: โปร่งใส
+    })
+
+    -- ★ Cursor dot
+    local cursorDot = Instance.new("Frame", boxFrame)
+    cursorDot.Size = UDim2.fromOffset(12, 12)
+    cursorDot.AnchorPoint = Vector2.new(0.5, 0.5)
+    cursorDot.Position = UDim2.fromScale(0, 0)
+    cursorDot.BackgroundColor3 = Color3.new(1, 1, 1)
+    cursorDot.BorderSizePixel = 2
+    cursorDot.BorderColor3 = Color3.new(0, 0, 0)
+    cursorDot.ZIndex = 5
+    Instance.new("UICorner", cursorDot).CornerRadius = UDim.new(1, 0)
+
+    -- Value slider
+    local valBg = Instance.new("Frame", frame)
+    valBg.Size = UDim2.fromOffset(220, 20)
+    valBg.Position = UDim2.fromOffset(20, 250)
+    valBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    valBg.BorderSizePixel = 0
+    Instance.new("UICorner", valBg).CornerRadius = UDim.new(0, 4)
+
+    local valFill = Instance.new("Frame", valBg)
+    valFill.Size = UDim2.fromScale(1, 1)
+    valFill.BackgroundColor3 = Color3.new(1, 1, 1)
+    valFill.BorderSizePixel = 0
+    Instance.new("UICorner", valFill).CornerRadius = UDim.new(0, 4)
+
+    local valLabel = Instance.new("TextLabel", frame)
+    valLabel.Size = UDim2.new(1, -40, 0, 20)
+    valLabel.Position = UDim2.fromOffset(20, 275)
+    valLabel.BackgroundTransparency = 1
+    valLabel.Text = "Value"
+    valLabel.TextColor3 = Color3.new(1, 1, 1)
+    valLabel.TextSize = 12
+    valLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Preview swatch
+    local preview = Instance.new("Frame", frame)
+    preview.Size = UDim2.fromOffset(80, 30)
+    preview.Position = UDim2.fromOffset(160, 275)
+    preview.BackgroundColor3 = Color3.new(1, 1, 1)
+    preview.BorderSizePixel = 2
+    preview.BorderColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 4)
+
+    local hue, sat, val = 0, 1, 1
+    local callback = nil
+    local draggingBox, draggingVal = false, false
+
+    local function updateColor()
+        local c = Color3.fromHSV(hue, sat, val)
+        preview.BackgroundColor3 = c
+        valFill.BackgroundColor3 = Color3.fromHSV(hue, sat, 1)
+        if callback then callback(c) end
+    end
+
+    local function updateFromBox(x, y)
+        local relX = math.clamp((x - boxFrame.AbsolutePosition.X) / boxFrame.AbsoluteSize.X, 0, 1)
+        local relY = math.clamp((y - boxFrame.AbsolutePosition.Y) / boxFrame.AbsoluteSize.Y, 0, 1)
+        hue = relX
+        sat = 1 - relY
+        cursorDot.Position = UDim2.fromScale(relX, relY)
+        updateColor()
+    end
+
+    local function updateFromVal(x)
+        local rel = math.clamp((x - valBg.AbsolutePosition.X) / valBg.AbsoluteSize.X, 0, 1)
+        val = rel
+        valFill.Size = UDim2.new(rel, 0, 1, 0)
+        updateColor()
+    end
+
+    boxFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingBox = true
+            updateFromBox(input.Position.X, input.Position.Y)
+        end
+    end)
+    valBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingVal = true
+            updateFromVal(input.Position.X)
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            if draggingBox then updateFromBox(input.Position.X, input.Position.Y) end
+            if draggingVal then updateFromVal(input.Position.X) end
+        end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingBox = false
+            draggingVal = false
+        end
+    end)
+
+    close.Activated:Connect(function() frame.Visible = false end)
+
+    ColorPicker = {
+        Open = function(title_, initColor, cb)
+            title.Text = title_
+            callback = cb
+            local h, s, v = initColor:ToHSV()
+            hue, sat, val = h, s, v
+            cursorDot.Position = UDim2.fromScale(h, 1 - s)
+            valFill.Size = UDim2.new(v, 0, 1, 0)
+            preview.BackgroundColor3 = initColor
+            frame.Visible = true
+        end,
+    }
+end
+
+--==========================================================
+-- UI
+--==========================================================
+local PepsisWorld = library:CreateWindow({
+    Name = "SevenM Hood",
+    Themeable = { Info = "Combat" }
+})
+
+local CombatTab = PepsisWorld:CreateTab({ Name = "Combat" })
+local AimSection = CombatTab:CreateSection({ Name = "Aimbot" })
+
+AimSection:AddToggle({ Name = "Aimbot", Flag = "aimbot_on", Callback = function(v) Config.Aim = v end })
+AimSection:AddToggle({ Name = "Silent Aim (no camera lock)", Flag = "aimbot_silent", Callback = function(v) Config.SilentAim = v end })
+AimSection:AddToggle({ Name = "Wall Check", Flag = "aimbot_wall", Callback = function(v) Config.Wall = v end })
+AimSection:AddToggle({ Name = "Team Check", Flag = "aimbot_team", Callback = function(v) Config.Team = v end })
+AimSection:AddSlider({ Name = "Aim FOV", Flag = "aimbot_fov", Value = 150, Min = 10, Max = 500,
+    Format = function(v) return "Aim FOV: " .. tostring(math.floor(v)) end, Callback = function(v) Config.AimFOV = v end })
+AimSection:AddSlider({ Name = "Distance", Flag = "aimbot_distance", Value = 500, Min = 50, Max = 2000,
+    Format = function(v) return "Distance: " .. tostring(math.floor(v)) end, Callback = function(v) Config.Dist = v end })
+AimSection:AddSlider({ Name = "Smooth", Flag = "aimbot_smooth", Value = 1, Min = 0.05, Max = 1, Precise = 2,
+    Format = function(v) return "Smooth: " .. string.format("%.2f", v) end, Callback = function(v) Config.Smooth = v end })
+
+local CamSection = CombatTab:CreateSection({ Name = "Camera Follow Head" })
+CamSection:AddToggle({ Name = "Enable Camera Follow Head", Flag = "cam_follow", Callback = function(v) Config.CamFollow = v end })
+CamSection:AddSlider({ Name = "Follow Speed", Flag = "cam_follow_speed", Value = 0.15, Min = 0.02, Max = 1, Precise = 2,
+    Format = function(v) return "Speed: " .. string.format("%.2f", v) end, Callback = function(v) Config.CamFollowSpeed = v end })
+
+local ESPTab = PepsisWorld:CreateTab({ Name = "ESP" })
+local ESPSection = ESPTab:CreateSection({ Name = "Visuals" })
+
+ESPSection:AddToggle({ Name = "ESP",      Flag = "esp_on",       Callback = function(v) Config.ESP = v end })
+ESPSection:AddToggle({ Name = "Box",      Flag = "esp_box",      Callback = function(v) Config.Box = v end })
+ESPSection:AddToggle({ Name = "Name",     Flag = "esp_name",     Callback = function(v) Config.Name = v end })
+ESPSection:AddToggle({ Name = "Distance", Flag = "esp_distance", Callback = function(v) Config.Distance = v end })
+ESPSection:AddToggle({ Name = "Health",   Flag = "esp_health",   Callback = function(v) Config.Health = v end })
+ESPSection:AddToggle({ Name = "Tracer",   Flag = "esp_tracer",   Callback = function(v) Config.Tracer = v end })
+ESPSection:AddToggle({ Name = "Head Dot", Flag = "esp_headdot",  Callback = function(v) Config.HeadDot = v end })
+ESPSection:AddSlider({ Name = "ESP Max Distance", Flag = "esp_maxdist", Value = 1500, Min = 100, Max = 5000,
+    Format = function(v) return "Max Dist: " .. tostring(math.floor(v)) end, Callback = function(v) Config.ESPDist = v end })
+
+local ColorSection = ESPTab:CreateSection({ Name = "Colors" })
+ColorSection:AddButton({ Name = "Box Color",       Callback = function() ColorPicker.Open("Box Color", Config.ColorBox, function(c) Config.ColorBox = c end) end })
+ColorSection:AddButton({ Name = "Name Color",      Callback = function() ColorPicker.Open("Name Color", Config.ColorName, function(c) Config.ColorName = c end) end })
+ColorSection:AddButton({ Name = "Distance Color",  Callback = function() ColorPicker.Open("Distance Color", Config.ColorDistance, function(c) Config.ColorDistance = c end) end })
+ColorSection:AddButton({ Name = "Health Color",    Callback = function() ColorPicker.Open("Health Color", Config.ColorHealth, function(c) Config.ColorHealth = c end) end })
+ColorSection:AddButton({ Name = "Tracer Color",    Callback = function() ColorPicker.Open("Tracer Color", Config.ColorTracer, function(c) Config.ColorTracer = c end) end })
+ColorSection:AddButton({ Name = "Head Dot Color",  Callback = function() ColorPicker.Open("Head Dot Color", Config.ColorHeadDot, function(c) Config.ColorHeadDot = c end) end })
+
+local VisualTab = PepsisWorld:CreateTab({ Name = "Visual" })
+local VisSection = VisualTab:CreateSection({ Name = "Camera" })
+
+VisSection:AddToggle({ Name = "POV Circle", Flag = "pov_on", Callback = function(v) Config.POVCircle = v end })
+VisSection:AddSlider({ Name = "Camera FOV", Flag = "cam_fov", Value = 70, Min = 30, Max = 140,
+    Format = function(v) return "Camera FOV: " .. tostring(math.floor(v)) end,
+    Callback = function(v) Config.CamFOV = v if C then C.FieldOfView = v end end })
+
+local FOVColor = VisualTab:CreateSection({ Name = "Colors" })
+FOVColor:AddButton({ Name = "FOV Circle Color", Callback = function() ColorPicker.Open("FOV Circle Color", Config.ColorFOV, function(c) Config.ColorFOV = c end) end })
+
+--==========================================================
+-- FOV CIRCLE
+--==========================================================
+local G = Instance.new("ScreenGui")
+G.Name = "FOVCircle"
+G.ResetOnSpawn = false
+G.IgnoreGuiInset = true
+G.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+G.Parent = (pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui")) or L:WaitForChild("PlayerGui")
+
+local F = Instance.new("Frame", G)
+F.AnchorPoint = Vector2.new(0.5, 0.5)
+F.Position = UDim2.fromScale(0.5, 0.5)
+F.Size = UDim2.fromOffset(Config.AimFOV * 2, Config.AimFOV * 2)
+F.BackgroundTransparency = 1
+F.BorderSizePixel = 0
+F.Visible = Config.POVCircle
+F.ZIndex = 0
+Instance.new("UICorner", F).CornerRadius = UDim.new(1, 0)
+
+local stroke = Instance.new("UIStroke", F)
+stroke.Thickness = 1.5
+stroke.Color = Config.ColorFOV
+
+--==========================================================
+-- HELPERS
+--==========================================================
+local function enemy(p)
+    if not Config.Team then return true end
+    if not p.Team or not L.Team then return true end
+    return p.Team ~= L.Team
+end
+
+local function getAimPart(ch)
+    if not ch then return nil end
+    if Config.AimPart == "Head" then return ch:FindFirstChild("Head") end
+    if Config.AimPart == "UpperTorso" then return ch:FindFirstChild("UpperTorso") or ch:FindFirstChild("Torso") end
+    if Config.AimPart == "LowerTorso" then return ch:FindFirstChild("LowerTorso") or ch:FindFirstChild("Torso") end
+    return ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Torso")
+end
+
+--==========================================================
+-- AIMBOT
+--==========================================================
+local function los(part)
+    if not Config.Wall then return true end
+    local q = RaycastParams.new()
+    q.FilterType = Enum.RaycastFilterType.Exclude
+    q.FilterDescendantsInstances = { L.Character }
+    local r = workspace:Raycast(C.CFrame.Position, part.Position - C.CFrame.Position, q)
+    return not r or r.Instance:IsDescendantOf(part.Parent)
+end
+
+local function target()
+    local best, bd = nil, math.huge
+    local center = C.ViewportSize / 2
+    for _, p in ipairs(P:GetPlayers()) do
+        if enemy(p) and p.Character then
+            local h = p.Character:FindFirstChildOfClass("Humanoid")
+            local x = getAimPart(p.Character)
+            if h and h.Health > 0 and x then
+                local d = (C.CFrame.Position - x.Position).Magnitude
+                local s, v = C:WorldToViewportPoint(x.Position)
+                local sd = (Vector2.new(s.X, s.Y) - center).Magnitude
+                if d <= Config.Dist and v and sd <= Config.AimFOV and sd < bd and los(x) then
+                    bd = sd
+                    best = x
+                end
+            end
+        end
+    end
+    return best
+end
+
+--==========================================================
+-- ESP
+--==========================================================
+local espCache = {}
+
+local function getObj(p)
+    if not espCache[p] then
+        espCache[p] = {
+            Box    = Drawing.new("Square"),
+            Name   = Drawing.new("Text"),
+            Dist   = Drawing.new("Text"),
+            HPBg   = Drawing.new("Square"),
+            HPFg   = Drawing.new("Square"),
+            Tracer = Drawing.new("Line"),
+            Head   = Drawing.new("Circle"),
+        }
+        local e = espCache[p]
+        e.Box.Thickness = 1 e.Box.Filled = false
+        e.Name.Size = 14 e.Name.Center = true e.Name.Outline = true
+        e.Dist.Size = 12 e.Dist.Center = true e.Dist.Outline = true
+        e.HPBg.Filled = true e.HPFg.Filled = true
+        e.Tracer.Thickness = 1
+        e.Head.Thickness = 1 e.Head.Filled = true e.Head.NumSides = 16 e.Head.Radius = 3
+    end
+    return espCache[p]
+end
+
+local function hideESP(p)
+    local e = espCache[p]
+    if e then for _, o in pairs(e) do o.Visible = false end end
+end
+
+P.PlayerRemoving:Connect(function(p)
+    if espCache[p] then
+        for _, o in pairs(espCache[p]) do pcall(function() o:Remove() end) end
+        espCache[p] = nil
+    end
+end)
+
+local function drawESP(p)
+    if p == L then hideESP(p) return end
+    local ch = p.Character
+    if not ch then hideESP(p) return end
+    if not enemy(p) then hideESP(p) return end
+
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then hideESP(p) return end
+
+    local root = ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Torso") or ch:FindFirstChild("LowerTorso")
+    local head = ch:FindFirstChild("Head")
+    if not root or not head then hideESP(p) return end
+
+    local camPos = C.CFrame.Position
+    local dd = (root.Position - camPos).Magnitude
+    if dd > Config.ESPDist then hideESP(p) return end
+
+    local headPos = head.Position + Vector3.new(0, 0.6, 0)
+    local footPos = root.Position - Vector3.new(0, 3, 0)
+
+    local hS, onH = C:WorldToViewportPoint(headPos)
+    local fS, onF = C:WorldToViewportPoint(footPos)
+    if not onH and not onF then hideESP(p) return end
+
+    local e = getObj(p)
+    local h = math.abs(hS.Y - fS.Y)
+    local w = h * 0.5
+    local pos = Vector2.new(hS.X - w / 2, hS.Y)
+
+    e.Box.Visible = Config.Box
+    e.Box.Size = Vector2.new(w, h)
+    e.Box.Position = pos
+    e.Box.Color = Config.ColorBox
+
+    e.Name.Visible = Config.Name
+    e.Name.Text = p.Name
+    e.Name.Position = Vector2.new(hS.X, hS.Y - 18)
+    e.Name.Color = Config.ColorName
+
+    e.Dist.Visible = Config.Distance
+    e.Dist.Text = string.format("[%d]", math.floor(dd))
+    e.Dist.Position = Vector2.new(hS.X, hS.Y + h + 2)
+    e.Dist.Color = Config.ColorDistance
+
+    local hpPct = math.clamp(hum.Health / 100, 0, 1)
+    e.HPBg.Visible = Config.Health
+    e.HPBg.Size = Vector2.new(2, h)
+    e.HPBg.Position = pos - Vector2.new(6, 0)
+    e.HPBg.Color = Color3.fromRGB(0, 0, 0)
+
+    e.HPFg.Visible = Config.Health
+    e.HPFg.Size = Vector2.new(2, h * hpPct)
+    e.HPFg.Position = Vector2.new(pos.X - 6, pos.Y + (h * (1 - hpPct)))
+    e.HPFg.Color = Config.ColorHealth
+
+    e.Tracer.Visible = Config.Tracer
+    e.Tracer.From = Vector2.new(C.ViewportSize.X / 2, C.ViewportSize.Y)
+    e.Tracer.To = Vector2.new(hS.X, hS.Y)
+    e.Tracer.Color = Config.ColorTracer
+
+    e.Head.Visible = Config.HeadDot
+    e.Head.Position = Vector2.new(hS.X, hS.Y)
+    e.Head.Color = Config.ColorHeadDot
+end
+
+--==========================================================
+-- MAIN LOOP
+--==========================================================
+R.RenderStepped:Connect(function()
+    if Config.POVCircle then
+        F.Visible = true
+        F.Size = UDim2.fromOffset(Config.AimFOV * 2, Config.AimFOV * 2)
+        stroke.Color = Config.ColorFOV
+    else
+        F.Visible = false
+    end
+
+    if C and C.FieldOfView ~= Config.CamFOV then
+        C.FieldOfView = Config.CamFOV
+    end
+
+    if Config.Aim then
+        local x = target()
+        if x then
+            if Config.SilentAim then
+                local myRoot = L.Character and (L.Character:FindFirstChild("HumanoidRootPart") or L.Character:FindFirstChild("Torso"))
+                if myRoot then
+                    local dir = x.Position - myRoot.Position
+                    local flat = Vector3.new(dir.X, 0, dir.Z)
+                    if flat.Magnitude > 0 then
+                        myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + flat.Unit)
+                    end
+                end
+            else
+                C.CFrame = C.CFrame:Lerp(CFrame.lookAt(C.CFrame.Position, x.Position), Config.Smooth)
+            end
+        end
+    end
+
+    if Config.CamFollow then
+        local x = target()
+        if x then
+            C.CFrame = C.CFrame:Lerp(CFrame.lookAt(C.CFrame.Position, x.Position), Config.CamFollowSpeed)
+        end
+    end
+
+    if Config.ESP then
+        for _, p in ipairs(P:GetPlayers()) do drawESP(p) end
+    else
+        for p, _ in pairs(espCache) do hideESP(p) end
+    end
+end)
+
+print("[S] SevenM Hood — loaded")
