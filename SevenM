@@ -1,5 +1,5 @@
 --==========================================================
--- SevenM Hood — Pepsi UI + Aimbot + HSV Picker (FIXED)
+-- SevenM Hood — Pepsi UI + Aimbot + HSV Picker (FIXED self-lock)
 --==========================================================
 local library = loadstring(game:GetObjects("rbxassetid://7657867786")[1].Source)()
 
@@ -29,7 +29,7 @@ local Config = {
 }
 
 --==========================================================
--- HSV COLOR PICKER (แก้ hue × sat)
+-- HSV COLOR PICKER
 --==========================================================
 local ColorPicker
 do
@@ -69,19 +69,17 @@ do
     close.BorderSizePixel = 0
     Instance.new("UICorner", close).CornerRadius = UDim.new(1, 0)
 
-    -- ★ Box container
     local boxFrame = Instance.new("Frame", frame)
     boxFrame.Size = UDim2.fromOffset(220, 200)
     boxFrame.Position = UDim2.fromOffset(20, 40)
-    boxFrame.BackgroundColor3 = Color3.new(1, 1, 1)     -- ★ ขาว base
+    boxFrame.BackgroundColor3 = Color3.new(1, 1, 1)
     boxFrame.BorderSizePixel = 0
     boxFrame.ClipsDescendants = true
     Instance.new("UICorner", boxFrame).CornerRadius = UDim.new(0, 6)
 
-    -- ★ Hue gradient — base ขาว → gradient แสดงสีรุ้งจริง
     local hueGradient = Instance.new("Frame", boxFrame)
     hueGradient.Size = UDim2.fromScale(1, 1)
-    hueGradient.BackgroundColor3 = Color3.new(1, 1, 1)   -- ★ ขาว
+    hueGradient.BackgroundColor3 = Color3.new(1, 1, 1)
     hueGradient.BorderSizePixel = 0
     hueGradient.BackgroundTransparency = 0
     Instance.new("UICorner", hueGradient).CornerRadius = UDim.new(0, 6)
@@ -97,22 +95,19 @@ do
         ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0)),
     })
 
-    -- ★ Saturation overlay — ดำไล่ลงล่าง
     local satOverlay = Instance.new("Frame", boxFrame)
     satOverlay.Size = UDim2.fromScale(1, 1)
-    satOverlay.BackgroundColor3 = Color3.new(0, 0, 0)     -- ★ ดำ base
+    satOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
     satOverlay.BorderSizePixel = 0
-    satOverlay.BackgroundTransparency = 0
     Instance.new("UICorner", satOverlay).CornerRadius = UDim.new(0, 6)
 
     local satGrad = Instance.new("UIGradient", satOverlay)
-    satGrad.Rotation = 90                                  -- ตั้ง
+    satGrad.Rotation = 90
     satGrad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),   -- บน: ทึบ (ดำ)
-        NumberSequenceKeypoint.new(1, 1),   -- ล่าง: โปร่งใส
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 1),
     })
 
-    -- ★ Cursor dot
     local cursorDot = Instance.new("Frame", boxFrame)
     cursorDot.Size = UDim2.fromOffset(12, 12)
     cursorDot.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -123,7 +118,6 @@ do
     cursorDot.ZIndex = 5
     Instance.new("UICorner", cursorDot).CornerRadius = UDim.new(1, 0)
 
-    -- Value slider
     local valBg = Instance.new("Frame", frame)
     valBg.Size = UDim2.fromOffset(220, 20)
     valBg.Position = UDim2.fromOffset(20, 250)
@@ -137,16 +131,6 @@ do
     valFill.BorderSizePixel = 0
     Instance.new("UICorner", valFill).CornerRadius = UDim.new(0, 4)
 
-    local valLabel = Instance.new("TextLabel", frame)
-    valLabel.Size = UDim2.new(1, -40, 0, 20)
-    valLabel.Position = UDim2.fromOffset(20, 275)
-    valLabel.BackgroundTransparency = 1
-    valLabel.Text = "Value"
-    valLabel.TextColor3 = Color3.new(1, 1, 1)
-    valLabel.TextSize = 12
-    valLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Preview swatch
     local preview = Instance.new("Frame", frame)
     preview.Size = UDim2.fromOffset(80, 30)
     preview.Position = UDim2.fromOffset(160, 275)
@@ -165,7 +149,6 @@ do
         valFill.BackgroundColor3 = Color3.fromHSV(hue, sat, 1)
         if callback then callback(c) end
     end
-
     local function updateFromBox(x, y)
         local relX = math.clamp((x - boxFrame.AbsolutePosition.X) / boxFrame.AbsoluteSize.X, 0, 1)
         local relY = math.clamp((y - boxFrame.AbsolutePosition.Y) / boxFrame.AbsoluteSize.Y, 0, 1)
@@ -174,7 +157,6 @@ do
         cursorDot.Position = UDim2.fromScale(relX, relY)
         updateColor()
     end
-
     local function updateFromVal(x)
         local rel = math.clamp((x - valBg.AbsolutePosition.X) / valBg.AbsoluteSize.X, 0, 1)
         val = rel
@@ -310,6 +292,7 @@ stroke.Color = Config.ColorFOV
 -- HELPERS
 --==========================================================
 local function enemy(p)
+    if p == L then return false end       -- ★ ตัวเองไม่ใช่ศัตรู
     if not Config.Team then return true end
     if not p.Team or not L.Team then return true end
     return p.Team ~= L.Team
@@ -339,7 +322,7 @@ local function target()
     local best, bd = nil, math.huge
     local center = C.ViewportSize / 2
     for _, p in ipairs(P:GetPlayers()) do
-        if enemy(p) and p.Character then
+        if p ~= L and enemy(p) and p.Character then     -- ★ p ~= L
             local h = p.Character:FindFirstChildOfClass("Humanoid")
             local x = getAimPart(p.Character)
             if h and h.Health > 0 and x then
